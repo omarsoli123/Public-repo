@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Colorful Snake Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Arial', sans-serif;
+        }
+        .game-container {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            color: #fff;
+            margin: 0 0 20px 0;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        #gameCanvas {
+            border: 4px solid #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            background: #1a1a2e;
+        }
+        .score-container {
+            margin-top: 20px;
+            color: #fff;
+            font-size: 1.5em;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        .controls {
+            margin-top: 15px;
+            color: #fff;
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            color: #fff;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            z-index: 1000;
+            min-width: 300px;
+        }
+        .modal h2 {
+            margin: 0 0 20px 0;
+            font-size: 2em;
+        }
+        .modal button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2em;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin: 10px;
+        }
+        .modal button:hover {
+            transform: scale(1.05);
+        }
+        .level-info {
+            margin-top: 10px;
+            color: #fff;
+            font-size: 1.2em;
+        }
+        #levelComplete {
+            background: rgba(46, 204, 113, 0.95);
+        }
+        #modeSelect button {
+            display: block;
+            width: 100%;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>🐍 Snake Game</h1>
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
+        <div class="score-container">
+            <span id="modeDisplay"></span>
+            <div id="newbieStats" style="display:none;">
+                Score: <span id="newbieScore">0</span> | High Score: <span id="newbieHighScore">0</span> | Hearts: <span id="hearts">❤️❤️❤️</span>
+            </div>
+            <div id="classicStats" style="display:none;">
+                Score: <span id="score">0</span> | High Score: <span id="highScore">0</span>
+            </div>
+            <div id="hardStats" style="display:none;">
+                Score: <span id="hardScore">0</span> | High Score: <span id="hardHighScore">0</span> | Speed: <span id="speedDisplay">1.0x</span>
+            </div>
+            <div id="storyStats" style="display:none;">
+                Level: <span id="level">1</span> | Food: <span id="foodCount">0</span>/<span id="foodTarget">5</span>
+            </div>
+        </div>
+        <div class="controls">
+            Use Arrow Keys or WASD to move
+        </div>
+    </div>
+
+    <div id="modeSelect" class="modal">
+        <h2>Choose Game Mode</h2>
+        <button onclick="startNewbieMode()">💚 Newbie Mode</button>
+        <button onclick="startClassicMode()">🎮 Classic Mode</button>
+        <button onclick="startHardMode()">🔥 Hard Mode</button>
+        <button onclick="startStoryMode()">🏰 Story Mode</button>
+    </div>
+
+    <div id="gameOver" class="modal">
+        <h2>Game Over!</h2>
+        <p>Your Score: <span id="finalScore">0</span></p>
+        <button onclick="showModeSelect()">Main Menu</button>
+        <button onclick="restartGame()">Play Again</button>
+    </div>
+
+    <div id="levelComplete" class="modal">
+        <h2>🎉 Level Complete!</h2>
+        <p>Floor <span id="completedLevel">1</span> Cleared!</p>
+        <p>Checkpoint Saved</p>
+        <button onclick="nextLevel()">Ascend to Next Floor</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const newbieScoreEl = document.getElementById('newbieScore');
+        const newbieHighScoreEl = document.getElementById('newbieHighScore');
+        const heartsEl = document.getElementById('hearts');
+        const scoreEl = document.getElementById('score');
+        const highScoreEl = document.getElementById('highScore');
+        const hardScoreEl = document.getElementById('hardScore');
+        const hardHighScoreEl = document.getElementById('hardHighScore');
+        const speedDisplayEl = document.getElementById('speedDisplay');
+        const levelEl = document.getElementById('level');
+        const foodCountEl = document.getElementById('foodCount');
+        const foodTargetEl = document.getElementById('foodTarget');
+        const gameOverEl = document.getElementById('gameOver');
+        const levelCompleteEl = document.getElementById('levelComplete');
+        const modeSelectEl = document.getElementById('modeSelect');
+        const finalScoreEl = document.getElementById('finalScore');
+        const completedLevelEl = document.getElementById('completedLevel');
+        const modeDisplayEl = document.getElementById('modeDisplay');
+        const newbieStatsEl = document.getElementById('newbieStats');
+        const classicStatsEl = document.getElementById('classicStats');
+        const hardStatsEl = document.getElementById('hardStats');
+        const storyStatsEl = document.getElementById('storyStats');
+
+        const gridSize = 20;
+        const tileCount = canvas.width / gridSize;
+
+        let gameMode = null; // 'newbie' or 'classic' or 'story' or 'hard'
+        let snake = [{x: 15, y: 15}];
+        let dx = 0;
+        let dy = 0;
+        let food = {x: 10, y: 10};
+        let mines = [];
+        let powerups = [];
+        let invulnerable = false;
+        let invulnerableTimer = 0;
+        let score = 0;
+        let highScore = localStorage.getItem('snakeHighScore') || 0;
+        let hardHighScore = localStorage.getItem('snakeHardHighScore') || 0;
+        let newbieHighScore = localStorage.getItem('snakeNewbieHighScore') || 0;
+        let hearts = 3;
+        let gameRunning = false;
+        let gameSpeed = 100;
+        let baseSpeed = 100;
+
+        // Story mode variables
+        let currentLevel = 1;
+        let foodCollected = 0;
+        let foodTarget = 5;
+        let levelCheckpoint = 1;
+
+        highScoreEl.textContent = highScore;
+        hardHighScoreEl.textContent = hardHighScore;
+        newbieHighScoreEl.textContent = newbieHighScore;
+
+        const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f7b731', '#5f27cd', '#00d2d3', '#ff9ff3'];
+        let snakeColor = 0;
+
+        function showModeSelect() {
+            gameRunning = false;
+            gameOverEl.style.display = 'none';
+            levelCompleteEl.style.display = 'none';
+            modeSelectEl.style.display = 'block';
+            newbieStatsEl.style.display = 'none';
+            classicStatsEl.style.display = 'none';
+            hardStatsEl.style.display = 'none';
+            storyStatsEl.style.display = 'none';
+            modeDisplayEl.textContent = '';
+        }
+
+        function startNewbieMode() {
+            gameMode = 'newbie';
+            modeSelectEl.style.display = 'none';
+            newbieStatsEl.style.display = 'block';
+            classicStatsEl.style.display = 'none';
+            hardStatsEl.style.display = 'none';
+            storyStatsEl.style.display = 'none';
+            modeDisplayEl.textContent = '💚 Newbie Mode - Learn to Play!';
+            resetNewbieMode();
+            gameRunning = true;
+            gameLoop();
+        }
+
+        function startClassicMode() {
+            gameMode = 'classic';
+            modeSelectEl.style.display = 'none';
+            newbieStatsEl.style.display = 'none';
+            classicStatsEl.style.display = 'block';
+            hardStatsEl.style.display = 'none';
+            storyStatsEl.style.display = 'none';
+            modeDisplayEl.textContent = '🎮 Classic Mode';
+            resetClassicMode();
+            gameRunning = true;
+            gameLoop();
+        }
+
+        function startHardMode() {
+            gameMode = 'hard';
+            modeSelectEl.style.display = 'none';
+            newbieStatsEl.style.display = 'none';
+            classicStatsEl.style.display = 'none';
+            hardStatsEl.style.display = 'block';
+            storyStatsEl.style.display = 'none';
+            modeDisplayEl.textContent = '🔥 Hard Mode';
+            resetHardMode();
+            gameRunning = true;
+            gameLoop();
+        }
+
+        function startStoryMode() {
+            gameMode = 'story';
+            modeSelectEl.style.display = 'none';
+            newbieStatsEl.style.display = 'none';
+            classicStatsEl.style.display = 'none';
+            hardStatsEl.style.display = 'none';
+            storyStatsEl.style.display = 'block';
+            modeDisplayEl.textContent = '🏰 Story Mode - Tower Ascension';
+            resetStoryMode();
+            gameRunning = true;
+            gameLoop();
+        }
+
+        function resetNewbieMode() {
+            snake = [{x: 15, y: 15}];
+            dx = 0;
+            dy = 0;
+            score = 0;
+            hearts = 3;
+            mines = [];
+            powerups = [];
+            invulnerable = false;
+            invulnerableTimer = 0;
+            gameSpeed = 120;
+            baseSpeed = 120;
+            newbieScoreEl.textContent = score;
+            updateHeartsDisplay();
+            placeFood();
+        }
+
+        function updateHeartsDisplay() {
+            const heartSymbols = '❤️'.repeat(hearts);
+            heartsEl.textContent = heartSymbols || '💔';
+        }
+
+        function resetClassicMode() {
+            snake = [{x: 15, y: 15}];
+            dx = 0;
+            dy = 0;
+            score = 0;
+            mines = [];
+            powerups = [];
+            invulnerable = false;
+            invulnerableTimer = 0;
+            gameSpeed = 100;
+            baseSpeed = 100;
+            scoreEl.textContent = score;
+            placeFood();
+        }
+
+        function resetHardMode() {
+            snake = [{x: 15, y: 15}];
+            dx = 0;
+            dy = 0;
+            score = 0;
+            mines = [];
+            powerups = [];
+            invulnerable = false;
+            invulnerableTimer = 0;
+            gameSpeed = 100;
+            baseSpeed = 100;
+            hardScoreEl.textContent = score;
+            updateSpeedDisplay();
+            placeFood();
+        }
+
+        function updateSpeedDisplay() {
+            const speedMultiplier = (baseSpeed / gameSpeed).toFixed(1);
+            speedDisplayEl.textContent = speedMultiplier + 'x';
+        }
+
+        function resetStoryMode() {
+            currentLevel = levelCheckpoint;
+            foodCollected = 0;
+            calculateLevelRequirements();
+            snake = [{x: 15, y: 15}];
+            dx = 0;
+            dy = 0;
+            mines = [];
+            powerups = [];
+            invulnerable = false;
+            invulnerableTimer = 0;
+            updateStoryUI();
+            setupLevel();
+        }
+
+        function calculateLevelRequirements() {
+            foodTarget = 5 + Math.floor((currentLevel - 1) * 2);
+        }
+
+        function setupLevel() {
+            placeFood();
+            
+            // Place mines based on level
+            const mineCount = Math.min(Math.floor(currentLevel * 1.5), 15);
+            for (let i = 0; i < mineCount; i++) {
+                placeMine();
+            }
+            
+            // Place some initial powerups
+            const powerupCount = Math.max(1, Math.floor(currentLevel / 2));
+            for (let i = 0; i < powerupCount; i++) {
+                placePowerup();
+            }
+        }
+
+        function updateStoryUI() {
+            levelEl.textContent = currentLevel;
+            foodCountEl.textContent = foodCollected;
+            foodTargetEl.textContent = foodTarget;
+        }
+
+        function drawGame() {
+            clearCanvas();
+            moveSnake();
+            drawSnake();
+            drawFood();
+            drawMines();
+            drawPowerups();
+            checkCollision();
+            updateInvulnerability();
+        }
+
+        function clearCanvas() {
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawSnake() {
+            snake.forEach((segment, index) => {
+                const hue = (snakeColor + index * 10) % colors.length;
+                if (invulnerable) {
+                    ctx.fillStyle = index % 2 === 0 ? '#ffffff' : '#ffd700';
+                } else {
+                    ctx.fillStyle = colors[hue % colors.length];
+                }
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = invulnerable ? '#ffd700' : colors[hue % colors.length];
+                ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 2, gridSize - 2);
+                ctx.shadowBlur = 0;
+            });
+        }
+
+        function drawFood() {
+            ctx.fillStyle = '#feca57';
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#feca57';
+            ctx.beginPath();
+            ctx.arc(food.x * gridSize + gridSize/2, food.y * gridSize + gridSize/2, gridSize/2 - 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        function drawMines() {
+            mines.forEach(mine => {
+                ctx.fillStyle = '#e74c3c';
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#e74c3c';
+                ctx.fillRect(mine.x * gridSize + 2, mine.y * gridSize + 2, gridSize - 4, gridSize - 4);
+                
+                ctx.fillStyle = '#c0392b';
+                ctx.fillRect(mine.x * gridSize + 6, mine.y * gridSize + 6, gridSize - 12, gridSize - 12);
+                ctx.shadowBlur = 0;
+            });
+        }
+
+        function drawPowerups() {
+            powerups.forEach(powerup => {
+                ctx.shadowBlur = 20;
+                
+                if (powerup.type === 'bonus') {
+                    ctx.fillStyle = '#3498db';
+                    ctx.shadowColor = '#3498db';
+                    ctx.beginPath();
+                    ctx.moveTo(powerup.x * gridSize + gridSize/2, powerup.y * gridSize + 3);
+                    ctx.lineTo(powerup.x * gridSize + gridSize - 3, powerup.y * gridSize + gridSize/2);
+                    ctx.lineTo(powerup.x * gridSize + gridSize/2, powerup.y * gridSize + gridSize - 3);
+                    ctx.lineTo(powerup.x * gridSize + 3, powerup.y * gridSize + gridSize/2);
+                    ctx.closePath();
+                    ctx.fill();
+                } else if (powerup.type === 'invulnerability') {
+                    ctx.fillStyle = '#9b59b6';
+                    ctx.shadowColor = '#9b59b6';
+                    ctx.beginPath();
+                    ctx.arc(powerup.x * gridSize + gridSize/2, powerup.y * gridSize + gridSize/2, gridSize/2 - 3, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('S', powerup.x * gridSize + gridSize/2, powerup.y * gridSize + gridSize/2);
+                } else if (powerup.type === 'clearMines') {
+                    ctx.fillStyle = '#2ecc71';
+                    ctx.shadowColor = '#2ecc71';
+                    ctx.fillRect(powerup.x * gridSize + 3, powerup.y * gridSize + 3, gridSize - 6, gridSize - 6);
+                    
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 14px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('X', powerup.x * gridSize + gridSize/2, powerup.y * gridSize + gridSize/2);
+                }
+                
+                ctx.shadowBlur = 0;
+            });
+        }
+
+        function placeMine() {
+            let attempts = 0;
+            let newMine;
+            
+            while (attempts < 100) {
+                newMine = {
+                    x: Math.floor(Math.random() * tileCount),
+                    y: Math.floor(Math.random() * tileCount)
+                };
+                
+                if (isPositionValid(newMine.x, newMine.y)) {
+                    mines.push(newMine);
+                    return;
+                }
+                attempts++;
+            }
+        }
+
+        function placePowerup() {
+            const types = ['bonus', 'invulnerability', 'clearMines'];
+            const type = types[Math.floor(Math.random() * types.length)];
+            
+            let attempts = 0;
+            let newPowerup;
+            
+            while (attempts < 100) {
+                newPowerup = {
+                    x: Math.floor(Math.random() * tileCount),
+                    y: Math.floor(Math.random() * tileCount),
+                    type: type
+                };
+                
+                if (isPositionValid(newPowerup.x, newPowerup.y)) {
+                    powerups.push(newPowerup);
+                    return;
+                }
+                attempts++;
+            }
+        }
+
+        function placeFood() {
+            let attempts = 0;
+            
+            while (attempts < 100) {
+                food.x = Math.floor(Math.random() * tileCount);
+                food.y = Math.floor(Math.random() * tileCount);
+                
+                if (isPositionValid(food.x, food.y)) {
+                    return;
+                }
+                attempts++;
+            }
+            
+            // Fallback: find any valid position
+            for (let x = 0; x < tileCount; x++) {
+                for (let y = 0; y < tileCount; y++) {
+                    if (isPositionValid(x, y)) {
+                        food.x = x;
+                        food.y = y;
+                        return;
+                    }
+                }
+            }
+        }
+
+        function isPositionValid(x, y) {
+            for (let segment of snake) {
+                if (segment.x === x && segment.y === y) return false;
+            }
+            
+            if (food.x === x && food.y === y) return false;
+            
+            for (let mine of mines) {
+                if (mine.x === x && mine.y === y) return false;
+            }
+            
+            for (let powerup of powerups) {
+                if (powerup.x === x && powerup.y === y) return false;
+            }
+            
+            return true;
+        }
+
+        function updateInvulnerability() {
+            if (invulnerable) {
+                invulnerableTimer--;
+                if (invulnerableTimer <= 0) {
+                    invulnerable = false;
+                }
+            }
+        }
+
+        function moveSnake() {
+            if (dx === 0 && dy === 0) return;
+
+            let head = {x: snake[0].x + dx, y: snake[0].y + dy};
+            
+            // Wrap around borders
+            if (head.x < 0) head.x = tileCount - 1;
+            if (head.x >= tileCount) head.x = 0;
+            if (head.y < 0) head.y = tileCount - 1;
+            if (head.y >= tileCount) head.y = 0;
+            
+            snake.unshift(head);
+
+            if (head.x === food.x && head.y === food.y) {
+                snakeColor = (snakeColor + 1) % colors.length;
+                
+                if (gameMode === 'classic') {
+                    score++;
+                    scoreEl.textContent = score;
+                    
+                    if (score % 3 === 0) {
+                        placeMine();
+                    }
+                    
+                    if (score % 2 === 0) {
+                        placePowerup();
+                    }
+                    
+                    if (score > highScore) {
+                        highScore = score;
+                        highScoreEl.textContent = highScore;
+                        localStorage.setItem('snakeHighScore', highScore);
+                    }
+                } else if (gameMode === 'newbie') {
+                    score++;
+                    newbieScoreEl.textContent = score;
+                    
+                    if (score % 5 === 0) {
+                        placePowerup();
+                    }
+                    
+                    if (score > newbieHighScore) {
+                        newbieHighScore = score;
+                        newbieHighScoreEl.textContent = newbieHighScore;
+                        localStorage.setItem('snakeNewbieHighScore', newbieHighScore);
+                    }
+                } else if (gameMode === 'hard') {
+                    score++;
+                    hardScoreEl.textContent = score;
+                    
+                    // Increase speed every point
+                    gameSpeed = Math.max(20, gameSpeed - 2);
+                    updateSpeedDisplay();
+                    
+                    if (score % 3 === 0) {
+                        placeMine();
+                    }
+                    
+                    if (score % 2 === 0) {
+                        placePowerup();
+                    }
+                    
+                    if (score > hardHighScore) {
+                        hardHighScore = score;
+                        hardHighScoreEl.textContent = hardHighScore;
+                        localStorage.setItem('snakeHardHighScore', hardHighScore);
+                    }
+                } else if (gameMode === 'story') {
+                    foodCollected++;
+                    updateStoryUI();
+                    
+                    if (foodCollected >= foodTarget) {
+                        levelCheckpoint = currentLevel;
+                        completeLevelAnimation();
+                        return;
+                    }
+                }
+                
+                placeFood();
+            } else {
+                snake.pop();
+            }
+
+            // Check powerup collection
+            for (let i = powerups.length - 1; i >= 0; i--) {
+                if (head.x === powerups[i].x && head.y === powerups[i].y) {
+                    const powerup = powerups[i];
+                    
+                    if (powerup.type === 'bonus') {
+                        if (gameMode === 'classic') {
+                            score += 5;
+                            scoreEl.textContent = score;
+                            if (score > highScore) {
+                                highScore = score;
+                                highScoreEl.textContent = highScore;
+                                localStorage.setItem('snakeHighScore', highScore);
+                            }
+                        } else if (gameMode === 'newbie') {
+                            score += 5;
+                            newbieScoreEl.textContent = score;
+                            if (score > newbieHighScore) {
+                                newbieHighScore = score;
+                                newbieHighScoreEl.textContent = newbieHighScore;
+                                localStorage.setItem('snakeNewbieHighScore', newbieHighScore);
+                            }
+                        } else if (gameMode === 'hard') {
+                            score += 5;
+                            hardScoreEl.textContent = score;
+                            if (score > hardHighScore) {
+                                hardHighScore = score;
+                                hardHighScoreEl.textContent = hardHighScore;
+                                localStorage.setItem('snakeHardHighScore', hardHighScore);
+                            }
+                        }
+                    } else if (powerup.type === 'invulnerability') {
+                        invulnerable = true;
+                        invulnerableTimer = 50;
+                    } else if (powerup.type === 'clearMines') {
+                        mines = [];
+                    }
+                    
+                    powerups.splice(i, 1);
+                }
+            }
+        }
+
+        function checkCollision() {
+            const head = snake[0];
+
+            // In newbie mode, check for collisions but use hearts system
+            if (gameMode === 'newbie') {
+                let hitSomething = false;
+                
+                // Check self collision
+                for (let i = 1; i < snake.length; i++) {
+                    if (head.x === snake[i].x && head.y === snake[i].y) {
+                        hitSomething = true;
+                        break;
+                    }
+                }
+                
+                if (hitSomething) {
+                    loseHeart();
+                    return;
+                }
+            } else {
+                // Normal collision for other modes
+                for (let i = 1; i < snake.length; i++) {
+                    if (head.x === snake[i].x && head.y === snake[i].y) {
+                        endGame();
+                        return;
+                    }
+                }
+
+                if (!invulnerable) {
+                    for (let mine of mines) {
+                        if (head.x === mine.x && head.y === mine.y) {
+                            endGame();
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        function loseHeart() {
+            hearts--;
+            updateHeartsDisplay();
+            
+            if (hearts <= 0) {
+                endGame();
+            } else {
+                // Reset snake position but keep score
+                snake = [{x: 15, y: 15}];
+                dx = 0;
+                dy = 0;
+                invulnerable = true;
+                invulnerableTimer = 30;
+            }
+        }
+
+        function completeLevelAnimation() {
+            gameRunning = false;
+            completedLevelEl.textContent = currentLevel;
+            levelCompleteEl.style.display = 'block';
+        }
+
+        function nextLevel() {
+            levelCompleteEl.style.display = 'none';
+            currentLevel++;
+            foodCollected = 0;
+            calculateLevelRequirements();
+            
+            // Reset for next level but keep some snake length
+            const keepLength = Math.min(snake.length, 5);
+            snake = snake.slice(0, keepLength);
+            snake[0] = {x: 15, y: 15};
+            for (let i = 1; i < snake.length; i++) {
+                snake[i] = {x: 15 - i, y: 15};
+            }
+            
+            dx = 0;
+            dy = 0;
+            mines = [];
+            powerups = [];
+            invulnerable = false;
+            invulnerableTimer = 0;
+            
+            updateStoryUI();
+            setupLevel();
+            gameRunning = true;
+            gameLoop();
+        }
+
+        function endGame() {
+            gameRunning = false;
+            if (gameMode === 'classic') {
+                finalScoreEl.textContent = score;
+            } else if (gameMode === 'newbie') {
+                finalScoreEl.textContent = score;
+            } else if (gameMode === 'hard') {
+                finalScoreEl.textContent = score;
+            } else {
+                finalScoreEl.textContent = `Level ${currentLevel} - ${foodCollected}/${foodTarget} food collected`;
+            }
+            gameOverEl.style.display = 'block';
+        }
+
+        function restartGame() {
+            gameOverEl.style.display = 'none';
+            if (gameMode === 'classic') {
+                resetClassicMode();
+            } else if (gameMode === 'newbie') {
+                resetNewbieMode();
+            } else if (gameMode === 'hard') {
+                resetHardMode();
+            } else {
+                resetStoryMode();
+            }
+            gameRunning = true;
+            gameLoop();
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (!gameRunning && gameMode && (e.key.startsWith('Arrow') || 'wasd'.includes(e.key.toLowerCase()))) {
+                gameRunning = true;
+                gameLoop();
+            }
+
+            const key = e.key.toLowerCase();
+            
+            if ((key === 'arrowup' || key === 'w') && dy === 0) {
+                dx = 0;
+                dy = -1;
+            } else if ((key === 'arrowdown' || key === 's') && dy === 0) {
+                dx = 0;
+                dy = 1;
+            } else if ((key === 'arrowleft' || key === 'a') && dx === 0) {
+                dx = -1;
+                dy = 0;
+            } else if ((key === 'arrowright' || key === 'd') && dx === 0) {
+                dx = 1;
+                dy = 0;
+            }
+        });
+
+        function gameLoop() {
+            if (gameRunning) {
+                drawGame();
+                setTimeout(gameLoop, gameSpeed);
+            }
+        }
+
+        // Show mode select on start
+        showModeSelect();
+        drawGame();
+    </script>
+</body>
+</html>
